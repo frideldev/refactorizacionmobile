@@ -1,104 +1,105 @@
-class MA : AppCompatActivity() {
-    var i = ArrayList<HashMap<String, Any>>()
-    var t = 0.0
-    lateinit var rv: RecyclerView
-    lateinit var ad: RA
-    lateinit var pb: ProgressBar
-    lateinit var tv: TextView
+class ActividadPrincipal : AppCompatActivity() {
+    var listaProductos = ArrayList<HashMap<String, Any>>()
+    var montoTotal = 0.0
+    lateinit var recyclerProductos: RecyclerView
+    lateinit var adaptadorProductos: AdaptadorProductos
+    lateinit var barraProgreso: ProgressBar
+    lateinit var textoMontoTotal: TextView
 
-    override fun onCreate(s: Bundle?) {
-        super.onCreate(s)
-        setContentView(R.layout.a_m)
-        
-        rv = findViewById(R.id.rv)
-        pb = findViewById(R.id.pb)
-        tv = findViewById(R.id.tv)
-        
-        rv.layoutManager = LinearLayoutManager(this)
-        ad = RA(i) { p, q ->
-            // Agregar producto
-            val m = HashMap<String, Any>()
-            m["n"] = p
-            m["p"] = q
-            m["q"] = 1
-            a(m)
+    override fun onCreate(bundle: Bundle?) {
+        super.onCreate(bundle)
+        setContentView(R.layout.a_m) // Asegúrate de que el layout a_m.xml tenga los nuevos IDs
+
+        // Actualiza los IDs a nombres de alto nivel en el XML
+        recyclerProductos = findViewById(R.id.recyclerProductos)
+        barraProgreso = findViewById(R.id.barraProgreso)
+        textoMontoTotal = findViewById(R.id.textoMontoTotal)
+
+        recyclerProductos.layoutManager = LinearLayoutManager(this)
+        adaptadorProductos = AdaptadorProductos(listaProductos) { nombreProducto, precioProducto ->
+            // Agregar un nuevo producto
+            val producto = HashMap<String, Any>()
+            producto["nombre"] = nombreProducto
+            producto["precio"] = precioProducto
+            producto["cantidad"] = 1
+            agregarProducto(producto)
         }
-        
-        rv.adapter = ad
-        
-        findViewById<Button>(R.id.btn).setOnClickListener {
-            ld()
+        recyclerProductos.adapter = adaptadorProductos
+
+        findViewById<Button>(R.id.btnAgregarProducto).setOnClickListener {
+            cargarProductos()
         }
-        
-        ld()
+        cargarProductos()
     }
-    
-    fun ld() {
-        pb.visibility = View.VISIBLE
-        val db = FirebaseFirestore.getInstance()
-        db.collection("p").get()
-            .addOnSuccessListener { d ->
-                i.clear()
-                for (doc in d) {
-                    val m = HashMap<String, Any>()
-                    m["id"] = doc.id
-                    m["n"] = doc.getString("n") ?: ""
-                    m["p"] = doc.getDouble("p") ?: 0.0
-                    m["q"] = doc.getLong("q")?.toInt() ?: 1
-                    i.add(m)
+
+    fun cargarProductos() {
+        barraProgreso.visibility = View.VISIBLE
+        val baseDeDatos = FirebaseFirestore.getInstance()
+        baseDeDatos.collection("productos").get()
+            .addOnSuccessListener { documentos ->
+                listaProductos.clear()
+                for (documento in documentos) {
+                    val producto = HashMap<String, Any>()
+                    producto["id"] = documento.id
+                    producto["nombre"] = documento.getString("nombre") ?: ""
+                    producto["precio"] = documento.getDouble("precio") ?: 0.0
+                    producto["cantidad"] = documento.getLong("cantidad")?.toInt() ?: 1
+                    listaProductos.add(producto)
                 }
-                ad.notifyDataSetChanged()
-                c()
-                pb.visibility = View.GONE
+                adaptadorProductos.notifyDataSetChanged()
+                calcularMontoTotal()
+                barraProgreso.visibility = View.GONE
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                pb.visibility = View.GONE
+            .addOnFailureListener { error ->
+                Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+                barraProgreso.visibility = View.GONE
             }
     }
-    
-    fun a(m: HashMap<String, Any>) {
-        i.add(m)
-        ad.notifyDataSetChanged()
-        c()
+
+    fun agregarProducto(producto: HashMap<String, Any>) {
+        listaProductos.add(producto)
+        adaptadorProductos.notifyDataSetChanged()
+        calcularMontoTotal()
     }
-    
-    fun c() {
-        t = 0.0
-        for (j in i) {
-            t += (j["p"] as Double) * (j["q"] as Int)
+
+    fun calcularMontoTotal() {
+        montoTotal = 0.0
+        for (producto in listaProductos) {
+            montoTotal += (producto["precio"] as Double) * (producto["cantidad"] as Int)
         }
-        tv.text = "Total: $${t}"
+        textoMontoTotal.text = "Monto Total: $${montoTotal}"
     }
-    
-    inner class RA(private val d: ArrayList<HashMap<String, Any>>, private val cl: (String, Double) -> Unit) : 
-        RecyclerView.Adapter<RA.VH>() {
-        
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val n: TextView = v.findViewById(R.id.n)
-            val p: TextView = v.findViewById(R.id.p)
-            val q: TextView = v.findViewById(R.id.q)
-            val btn: Button = v.findViewById(R.id.btn)
+
+    inner class AdaptadorProductos(
+        private val datosProductos: ArrayList<HashMap<String, Any>>,
+        private val onAgregarProducto: (String, Double) -> Unit
+    ) : RecyclerView.Adapter<AdaptadorProductos.VistaProducto>() {
+
+        inner class VistaProducto(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val textoNombre: TextView = itemView.findViewById(R.id.tvNombre)
+            val textoPrecio: TextView = itemView.findViewById(R.id.tvPrecio)
+            val textoCantidad: TextView = itemView.findViewById(R.id.tvCantidad)
+            val botonIncrementar: Button = itemView.findViewById(R.id.btnIncrementar)
         }
-        
-        override fun onCreateViewHolder(p: ViewGroup, vt: Int): VH {
-            val v = LayoutInflater.from(p.context).inflate(R.layout.i_p, p, false)
-            return VH(v)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VistaProducto {
+            val itemView = LayoutInflater.from(parent.context).inflate(R.layout.i_p, parent, false)
+            return VistaProducto(itemView)
         }
-        
-        override fun getItemCount() = d.size
-        
-        override fun onBindViewHolder(h: VH, pos: Int) {
-            val item = d[pos]
-            h.n.text = item["n"] as String
-            h.p.text = "$${item["p"] as Double}"
-            h.q.text = "Cantidad: ${item["q"] as Int}"
-            
-            h.btn.setOnClickListener {
-                val newQ = (item["q"] as Int) + 1
-                item["q"] = newQ
-                h.q.text = "Cantidad: $newQ"
-                c()
+
+        override fun getItemCount() = datosProductos.size
+
+        override fun onBindViewHolder(holder: VistaProducto, position: Int) {
+            val producto = datosProductos[position]
+            holder.textoNombre.text = producto["nombre"] as String
+            holder.textoPrecio.text = "$${producto["precio"] as Double}"
+            holder.textoCantidad.text = "Cantidad: ${producto["cantidad"] as Int}"
+
+            holder.botonIncrementar.setOnClickListener {
+                val nuevaCantidad = (producto["cantidad"] as Int) + 1
+                producto["cantidad"] = nuevaCantidad
+                holder.textoCantidad.text = "Cantidad: $nuevaCantidad"
+                calcularMontoTotal()
             }
         }
     }

@@ -3,59 +3,81 @@
   templateUrl: './p.component.html',
 })
 export class PComponent implements OnInit {
-  i: any[] = [];
-  t = 0;
-  l = false;
-  s = '';
+  // Lista de elementos
+  items: any[] = [];
+  // Total calculado de los items activos
+  total: number = 0;
+  // Indicador de carga
+  loading: boolean = false;
+  // Mensaje de estado para el usuario
+  statusMessage: string = '';
 
-  constructor(private h: HttpClient) {}
+  constructor(private http: HttpClient) {}
 
-  ngOnInit() {
-    this.l = true;
-    this.h.get('https://api.example.com/data').subscribe(
-      (d: any) => {
-        this.i = d;
-        this.c();
-        this.l = false;
+  ngOnInit(): void {
+    this.loading = true;
+    this.fetchData();
+  }
+
+  
+  //Obtiene los datos de la API y actualiza la lista de items.
+
+  private fetchData(): void {
+    this.http.get('https://api.example.com/data').subscribe(
+      (response: any) => {
+        this.items = response;
+        this.calculateTotal();
+        this.loading = false;
       },
-      (e) => {
-        console.log('Error', e);
-        this.s = 'Error al cargar datos';
-        this.l = false;
+      (error) => {
+        console.error('Error al obtener datos:', error);
+        this.statusMessage = 'Error al cargar datos';
+        this.loading = false;
       }
     );
   }
 
-  a(p) {
-    this.i.push(p);
-    this.c();
+  /**
+   * Agrega un nuevo elemento a la lista y recalcula el total.
+   * @param newItem Elemento a agregar.
+   */
+  addItem(newItem: any): void {
+    this.items.push(newItem);
+    this.calculateTotal();
   }
 
-  r(idx) {
-    this.i.splice(idx, 1);
-    this.c();
+  /**
+   * Elimina un elemento de la lista según el índice y recalcula el total.
+   * @param index Índice del elemento a eliminar.
+   */
+  removeItem(index: number): void {
+    this.items.splice(index, 1);
+    this.calculateTotal();
   }
 
-  c() {
-    this.t = 0;
-    for (let j = 0; j < this.i.length; j++) {
-      if (this.i[j].a === true) {
-        this.t += this.i[j].p * this.i[j].q;
-      }
-    }
+  /**
+   * Calcula el total sumando (precio * cantidad) de los items activos.
+   */
+  private calculateTotal(): void {
+    this.total = this.items.reduce((sum, item) => {
+      return item.a ? sum + item.p * item.q : sum;
+    }, 0);
   }
 
-  sv() {
-    this.l = true;
-    this.h.post('https://api.example.com/save', this.i).subscribe(
+  /**
+   * Guarda la lista de items en la API.
+   */
+  saveData(): void {
+    this.loading = true;
+    this.http.post('https://api.example.com/save', this.items).subscribe(
       () => {
-        this.s = 'Guardado correctamente';
-        this.l = false;
+        this.statusMessage = 'Guardado correctamente';
+        this.loading = false;
       },
-      (e) => {
-        this.s = 'Error al guardar';
-        console.log('Error', e);
-        this.l = false;
+      (error) => {
+        console.error('Error al guardar datos:', error);
+        this.statusMessage = 'Error al guardar';
+        this.loading = false;
       }
     );
   }
