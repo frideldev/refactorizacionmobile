@@ -1,105 +1,146 @@
-class MA : AppCompatActivity() {
-    var i = ArrayList<HashMap<String, Any>>()
-    var t = 0.0
-    lateinit var rv: RecyclerView
-    lateinit var ad: RA
-    lateinit var pb: ProgressBar
-    lateinit var tv: TextView
+class MainActivity : AppCompatActivity() {
+    private var productList = ArrayList<HashMap<String, Any>>()
+    private var totalAmount = 0.0
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var productAdapter: ProductAdapter
+    private lateinit var progressBar: ProgressBar
+    private lateinit var totalTextView: TextView
 
-    override fun onCreate(s: Bundle?) {
-        super.onCreate(s)
-        setContentView(R.layout.a_m)
-        
-        rv = findViewById(R.id.rv)
-        pb = findViewById(R.id.pb)
-        tv = findViewById(R.id.tv)
-        
-        rv.layoutManager = LinearLayoutManager(this)
-        ad = RA(i) { p, q ->
-            // Agregar producto
-            val m = HashMap<String, Any>()
-            m["n"] = p
-            m["p"] = q
-            m["q"] = 1
-            a(m)
-        }
-        
-        rv.adapter = ad
-        
-        findViewById<Button>(R.id.btn).setOnClickListener {
-            ld()
-        }
-        
-        ld()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        initializeViews()
+        setupRecyclerView()
+        setupButtonListener()
+        loadProducts()
     }
-    
-    fun ld() {
-        pb.visibility = View.VISIBLE
-        val db = FirebaseFirestore.getInstance()
-        db.collection("p").get()
-            .addOnSuccessListener { d ->
-                i.clear()
-                for (doc in d) {
-                    val m = HashMap<String, Any>()
-                    m["id"] = doc.id
-                    m["n"] = doc.getString("n") ?: ""
-                    m["p"] = doc.getDouble("p") ?: 0.0
-                    m["q"] = doc.getLong("q")?.toInt() ?: 1
-                    i.add(m)
-                }
-                ad.notifyDataSetChanged()
-                c()
-                pb.visibility = View.GONE
+
+    private fun initializeViews() {
+        recyclerView = findViewById(R.id.recyclerView)
+        progressBar = findViewById(R.id.progressBar)
+        totalTextView = findViewById(R.id.totalTextView)
+    }
+
+    private fun setupRecyclerView() {
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        productAdapter = ProductAdapter(productList) { productName, productPrice ->
+            addNewProduct(productName, productPrice)
+        }
+        recyclerView.adapter = productAdapter
+    }
+
+    private fun setupButtonListener() {
+        findViewById<Button>(R.id.loadButton).setOnClickListener {
+            loadProducts()
+        }
+    }
+
+    private fun loadProducts() {
+        showLoading(true)
+        val firestore = FirebaseFirestore.getInstance()
+
+        firestore.collection("products").get()
+            .addOnSuccessListener { querySnapshot ->
+                processProductData(querySnapshot)
+                showLoading(false)
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                pb.visibility = View.GONE
+            .addOnFailureListener { exception ->
+                showError(exception.message)
+                showLoading(false)
             }
     }
-    
-    fun a(m: HashMap<String, Any>) {
-        i.add(m)
-        ad.notifyDataSetChanged()
-        c()
-    }
-    
-    fun c() {
-        t = 0.0
-        for (j in i) {
-            t += (j["p"] as Double) * (j["q"] as Int)
-        }
-        tv.text = "Total: $${t}"
-    }
-    
-    inner class RA(private val d: ArrayList<HashMap<String, Any>>, private val cl: (String, Double) -> Unit) : 
-        RecyclerView.Adapter<RA.VH>() {
-        
-        inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-            val n: TextView = v.findViewById(R.id.n)
-            val p: TextView = v.findViewById(R.id.p)
-            val q: TextView = v.findViewById(R.id.q)
-            val btn: Button = v.findViewById(R.id.btn)
-        }
-        
-        override fun onCreateViewHolder(p: ViewGroup, vt: Int): VH {
-            val v = LayoutInflater.from(p.context).inflate(R.layout.i_p, p, false)
-            return VH(v)
-        }
-        
-        override fun getItemCount() = d.size
-        
-        override fun onBindViewHolder(h: VH, pos: Int) {
-            val item = d[pos]
-            h.n.text = item["n"] as String
-            h.p.text = "$${item["p"] as Double}"
-            h.q.text = "Cantidad: ${item["q"] as Int}"
-            
-            h.btn.setOnClickListener {
-                val newQ = (item["q"] as Int) + 1
-                item["q"] = newQ
-                h.q.text = "Cantidad: $newQ"
-                c()
+
+    private fun processProductData(querySnapshot: QuerySnapshot) {
+        productList.clear()
+
+        for (document in querySnapshot) {
+            val productMap = HashMap<String, Any>().apply {
+                put("id", document.id)
+                put("name", document.getString("name") ?: "")
+                put("price", document.getDouble("price") ?: 0.0)
+                put("quantity", document.getLong("quantity")?.toInt() ?: 1)
             }
+            productList.add(productMap)
+        }
+
+        productAdapter.notifyDataSetChanged()
+        calculateTotal()
+    }
+
+    private fun addNewProduct(productName: String, productPrice: Double) {
+        val newProduct = HashMap<String, Any>().apply {
+            put("name", productName)
+            put("price", productPrice)
+            put("quantity", 1)
+        }
+
+        productList.add(newProduct)
+        productAdapter.notifyDataSetChanged()
+        calculateTotal()
+    }
+
+    private fun calculateTotal() {
+        totalAmount = productList.sumByDouble { product ->
+            (product["price"] as Double) * (product["quantity"] as Int)
+        }
+
+        updateTotalDisplay()
+    }
+
+    private fun updateTotalDisplay() {
+        totalTextView.text = "Total: $${String.format("%.2f", totalAmount)}"
+    }
+
+    private fun showLoading(show: Boolean) {
+        progressBar.visibility = if (show) View.VISIBLE else View.GONE
+    }
+
+    private fun showError(errorMessage: String?) {
+        Toast.makeText(
+            this,
+            "Error: ${errorMessage ?: "Unknown error"}",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    inner class ProductAdapter(
+        private val products: ArrayList<HashMap<String, Any>>,
+        private val onProductAdd: (String, Double) -> Unit
+    ) : RecyclerView.Adapter<ProductAdapter.ProductViewHolder>() {
+
+        inner class ProductViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val nameTextView: TextView = itemView.findViewById(R.id.productNameTextView)
+            val priceTextView: TextView = itemView.findViewById(R.id.productPriceTextView)
+            val quantityTextView: TextView = itemView.findViewById(R.id.productQuantityTextView)
+            val increaseButton: Button = itemView.findViewById(R.id.increaseQuantityButton)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProductViewHolder {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_product, parent, false)
+            return ProductViewHolder(view)
+        }
+
+        override fun getItemCount() = products.size
+
+        override fun onBindViewHolder(holder: ProductViewHolder, position: Int) {
+            val product = products[position]
+
+            holder.nameTextView.text = product["name"] as String
+            holder.priceTextView.text = "$${product["price"] as Double}"
+            holder.quantityTextView.text = "Quantity: ${product["quantity"] as Int}"
+
+            holder.increaseButton.setOnClickListener {
+                increaseProductQuantity(product)
+                holder.quantityTextView.text = "Quantity: ${product["quantity"] as Int}"
+                calculateTotal()
+            }
+        }
+
+        private fun increaseProductQuantity(product: HashMap<String, Any>) {
+            val currentQuantity = product["quantity"] as Int
+            product["quantity"] = currentQuantity + 1
         }
     }
 }
