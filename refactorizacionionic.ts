@@ -1,62 +1,66 @@
-@Component({
-  selector: 'app-p',
-  templateUrl: './p.component.html',
-})
-export class PComponent implements OnInit {
-  i: any[] = [];
-  t = 0;
-  l = false;
-  s = '';
+import { Component, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 
-  constructor(private h: HttpClient) {}
+//Luciana Ichazo, Ana Gabriel
+
+interface Producto {
+  activo: boolean;
+  precio: number;
+  cantidad: number;
+}
+
+@Component({
+  selector: 'app-productos',
+  templateUrl: './productos.component.html',
+})
+export class ProductosComponent implements OnInit {
+  productos: Producto[] = [];
+  total = 0;
+  cargando = false;
+  mensajeEstado = '';
+
+  constructor(private http: HttpClient) {}
 
   ngOnInit() {
-    this.l = true;
-    this.h.get('https://api.example.com/data').subscribe(
-      (d: any) => {
-        this.i = d;
-        this.c();
-        this.l = false;
+    this.cargarProductos();
+  }
+
+  cargarProductos() {
+    this.cargando = true;
+    this.http.get<Producto[]>('https://api.example.com/data').subscribe(
+      (datos) => {
+        this.productos = datos;
+        this.calcularTotal();
       },
-      (e) => {
-        console.log('Error', e);
-        this.s = 'Error al cargar datos';
-        this.l = false;
-      }
-    );
+      (error) => this.manejarError('Error al cargar los datos', error)
+    ).add(() => this.cargando = false);
   }
 
-  a(p) {
-    this.i.push(p);
-    this.c();
+  agregarProducto(producto: Producto) {
+    this.productos.push(producto);
+    this.calcularTotal();
   }
 
-  r(idx) {
-    this.i.splice(idx, 1);
-    this.c();
+  eliminarProducto(indice: number) {
+    this.productos.splice(indice, 1);
+    this.calcularTotal();
   }
 
-  c() {
-    this.t = 0;
-    for (let j = 0; j < this.i.length; j++) {
-      if (this.i[j].a === true) {
-        this.t += this.i[j].p * this.i[j].q;
-      }
-    }
+  calcularTotal() {
+    this.total = this.productos.reduce((suma, producto) => 
+      producto.activo ? suma + producto.precio * producto.cantidad : suma, 0);
   }
 
-  sv() {
-    this.l = true;
-    this.h.post('https://api.example.com/save', this.i).subscribe(
-      () => {
-        this.s = 'Guardado correctamente';
-        this.l = false;
-      },
-      (e) => {
-        this.s = 'Error al guardar';
-        console.log('Error', e);
-        this.l = false;
-      }
-    );
+  guardarProductos() {
+    this.cargando = true;
+    this.http.post('https://api.example.com/save', this.productos).subscribe(
+      () => this.mensajeEstado = 'Guardado correctamente',
+      (error) => this.manejarError('Error al guardar', error)
+    ).add(() => this.cargando = false);
+  }
+
+  private manejarError(mensaje: string, error: any) {
+    console.error(mensaje, error);
+    this.mensajeEstado = mensaje;
   }
 }
